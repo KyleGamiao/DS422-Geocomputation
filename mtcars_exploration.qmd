@@ -1,0 +1,77 @@
+---
+title: "mtcars_exploration"
+format: html
+editor: visual
+---
+
+## Quarto
+
+Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
+
+## Code
+
+Library Statements
+
+```{r}
+library(here)
+library(tidyverse)
+```
+
+Import Data
+
+```{r}
+mtcars_df <- read.csv(here("data/mtcars.csv"))
+head(mtcars_df)
+```
+
+Scatter Plot of Weight vs Mpg
+
+```{r}
+ggplot(mtcars_df, aes(x = wt, y = mpg)) +
+  geom_point() +
+  labs(title = "Weight vs MPG",
+       x = "Weight (1000 lbs)",
+       y = "Miles per Gallon")
+```
+
+Scatter Plot of Weight vs Mpg by Amount of Cylinders
+
+```{r}
+ggplot(mtcars_df, aes(x = wt, y = mpg, color = factor(cyl))) +
+  geom_point(size = 3) +
+  labs(title = "Weight vs MPG by Cylinders",
+       x = "Weight (1000 lbs)",
+       y = "Miles per Gallon",
+       color = "Cylinders")
+```
+
+Histogram of Miles per Gallon
+
+```{r}
+ggplot(mtcars_df, aes(x = mpg)) +
+  geom_histogram(binwidth = 2, fill = "steelblue", color = "black") +
+  labs(title = "Number of Cars with Miles Per Gallon",
+       x = "Miles per Gallon",
+       y = "Number of Cars")
+```
+
+Separating data column make_model into make and model
+
+```{r}
+mtcars_df <- mtcars_df %>%
+  separate(make_model, into = c("make", "model"), sep = " ", extra = "merge")
+
+head(mtcars_df)
+```
+
+Box Plot with Jitter of Mpg by Make
+
+```{r}
+ggplot(mtcars_df, aes(x = reorder(make, mpg, FUN = median), y = mpg)) +
+  geom_boxplot(outlier.shape = NA, fill = "lightgray") +   # boxplot
+  geom_jitter(width = 0.2, aes(color = make), size = 2) +  # jittered points
+  labs(title = "Miles per Gallon by Make",
+       x = "Make",
+       y = "Miles per Gallon") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) # rotate labels
+```
