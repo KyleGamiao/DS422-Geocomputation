@@ -24,6 +24,8 @@ mtcars_df <- read.csv(here("data/mtcars.csv"))
 head(mtcars_df)
 ```
 
+## Graphs
+
 Scatter Plot of Weight vs Mpg
 
 ```{r}
