@@ -524,7 +524,7 @@ hi_pov_scale <- interpolate_palette(
   column = "poverty_rate",
   method = "equal",
   n = 4,
-  palette = viridisLite::viridis
+  palette = viridis
 )
 
 # Plot
@@ -536,11 +536,13 @@ mapboxgl(bounds = hi_poverty_wide) |>
     fill_opacity = 0.5
   ) |>
   add_legend(
-    "Poverty rate in Hawaiʻi (%)",
-    values = get_legend_labels(hi_pov_scale, digits = 1, suffix = "%"),
-    colors = get_legend_colors(hi_pov_scale),
-    type = "continuous"
-  )
+  "Poverty rate in Hawaiʻi (%)",
+  values = get_legend_labels(hi_pov_scale, digits = 1, suffix = "%"),
+  colors = get_legend_colors(hi_pov_scale),
+  type = "continuous",
+  style = list(color = "black", background = "white", padding = 6)
+)
+
 
 ```
 
