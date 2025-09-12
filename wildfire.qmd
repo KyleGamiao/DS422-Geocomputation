@@ -83,11 +83,25 @@ This dataset contains point geometries where fires were detected. Important colu
 Use ggplot to create a line plot of fires with the day on the x axis and number of fires on the y axis
 
 ```{r}
-
+# Aggregate fire counts per day
+fires_by_day <- wildfire_shp_data %>%
+  st_drop_geometry() %>%        # Drop geometry so we only work with attributes
+  group_by(ACQ_DATE) %>%        # Group by acquisition date
+  summarise(num_fires = n()) %>%
+  arrange(ACQ_DATE)
 ```
 
 ```{r}
-
+# Line plot of fires over time
+ggplot(fires_by_day, aes(x = ACQ_DATE, y = num_fires, group = 1)) +
+  geom_line(color = "firebrick", linewidth = 1) +
+  geom_point(color = "black") +
+  labs(
+    title = "Daily Wildfire Detections (Landsat - Last 7 Days)",
+    x = "Date of Detection",
+    y = "Number of Fires"
+  ) +
+  theme_minimal()
 ```
 
 ------------------------------------------------------------------------
@@ -97,7 +111,23 @@ Use ggplot to create a line plot of fires with the day on the x axis and number 
 Use ggplot to create a stacked bar chart colored by category with number of fires on the y axis for each day
 
 ```{r}
+# Aggregate fire counts by day and confidence level
+fires_by_day_conf <- wildfire_shp_data %>%
+  st_drop_geometry() %>%
+  group_by(ACQ_DATE, CONFIDENCE) %>%
+  summarise(num_fires = n(), .groups = "drop") %>%
+  arrange(ACQ_DATE)
 
+# Stacked bar chart
+ggplot(fires_by_day_conf, aes(x = ACQ_DATE, y = num_fires, fill = CONFIDENCE)) +
+  geom_bar(stat = "identity") +
+  labs(
+    title = "Daily Wildfire Detections by Confidence Level",
+    x = "Date of Detection",
+    y = "Number of Fires",
+    fill = "Confidence Level"
+  ) +
+  theme_minimal()
 ```
 
 ## 📏 Map Fire Points by Confidence Level
@@ -176,6 +206,7 @@ mapboxgl(style = mapbox_style("dark"), bounds = wildfire_shp_data) |>
 ## 🎙️ Animate Fire Detection Over Time
 
 ```{r}
+library(rnaturalearthhires)
 usa <- ne_states(country = "united states of america", returnclass = "sf")
 
 # Plot animated wildfire data
@@ -226,7 +257,7 @@ animate(
 unzip("data/FirespotArea_LANDSAT_USA_contiguous_and_Hawaii_7d.kmz", exdir = "data/fire_kml")
 
 wildfire_area_data <- st_read(
-  "data/fire_kml/LANDSAT_USA_contiguous_and_Hawaii_7d_1757462691416.kml",
+  "data/fire_kml/LANDSAT_USA_contiguous_and_Hawaii_7d_1757466462060.kml",
   layer = "30m Fire Detection Footprints (older than the last 24hrs) "
 )
 
@@ -256,6 +287,45 @@ Download the LANDSAT 30m CSV for USA (Conterminous) and Hawaii at the bottom rig
 
 ```{r}
 
+# Read CSV
+wildfires_df <- read_csv(here("data", "LANDSAT_USA_contiguous_and_Hawaii_7d.csv"))
+
+# Convert to sf
+wildfires_sf <- st_as_sf(
+  wildfires_df,
+  coords = c("longitude", "latitude"),
+  crs = 4326
+)
+
+# Assign numeric size for plotting
+wildfires_sf <- wildfires_sf %>%
+  mutate(CONFIDENCE_NUM = case_when(
+    confidence == "low" ~ 1,
+    confidence == "medium" ~ 2,
+    confidence == "high" ~ 3
+  ))
+
+# Get US states shapefile (medium resolution)
+usa <- ne_states(country = "united states of america", returnclass = "sf")
+
+# Plot bubble map over USA shape
+ggplot() +
+  geom_sf(data = usa, fill = "grey95", color = "white") +
+  geom_sf(data = wildfires_sf, aes(color = confidence, size = CONFIDENCE_NUM, alpha = CONFIDENCE_NUM)) +
+  scale_color_manual(values = c("low" = "#1a9850", "medium" = "#fee08b", "high" = "#d73027")) +
+  scale_size_continuous(range = c(1, 6), guide = "none") +
+  scale_alpha_continuous(range = c(0.4, 0.9), guide = "none") +
+  coord_sf(xlim = c(-125, -66), ylim = c(24, 50)) +  # Focus on continental US
+  labs(
+    title = "Wildfire Detections Across the USA (Landsat, Last 7 Days)",
+    subtitle = "Point size and opacity reflect confidence level",
+    color = "Confidence Level"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    plot.subtitle = element_text(size = 12)
+  )
 ```
 
 ## ✨ Summary
