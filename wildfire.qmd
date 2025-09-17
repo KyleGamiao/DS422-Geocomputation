@@ -286,46 +286,112 @@ Download the LANDSAT 30m CSV for USA (Conterminous) and Hawaii at the bottom rig
 -   Map the data with any package you would like, just make sure there is at least a slight difference from the examples above, be as creative as possible while utilizing your critical thinking
 
 ```{r}
+# Find the FIRMS CSV you saved in data/
+csv_path <- list.files(
+  here("data"),
+  pattern = "LANDSAT.*USA.*Hawaii.*7d.*\\.csv$",
+  full.names = TRUE,
+  ignore.case = TRUE
+)
+if (length(csv_path) == 0) stop("Couldn't find the LANDSAT 30m 7-day CSV in data/.")
+message("Using CSV: ", csv_path[1])
 
-# Read CSV
-wildfires_df <- read_csv(here("data", "LANDSAT_USA_contiguous_and_Hawaii_7d.csv"))
+# Read as a regular dataframe (readr is fast & handles types well)
+fires_df <- readr::read_csv(csv_path[1], show_col_types = FALSE)
 
-# Convert to sf
-wildfires_sf <- st_as_sf(
-  wildfires_df,
-  coords = c("longitude", "latitude"),
-  crs = 4326
+# Normalize column names to uppercase so we can rely on names
+fires_df <- fires_df |> rename_with(toupper)
+
+# Minimal QC: keep rows with valid coordinates
+fires_df <- fires_df |> filter(!is.na(LONGITUDE), !is.na(LATITUDE))
+
+# Make sure date is a real Date
+if ("ACQ_DATE" %in% names(fires_df)) {
+  fires_df <- fires_df |> mutate(ACQ_DATE = as.Date(ACQ_DATE))
+}
+
+# To avoid surprises, create a lowercase confidence column if present
+if ("CONFIDENCE" %in% names(fires_df)) {
+  fires_df <- fires_df |> mutate(CONF_LC = tolower(CONFIDENCE))
+} else {
+  fires_df <- fires_df |> mutate(CONF_LC = NA_character_)
+}
+
+# Convert to sf (keep LONG/LAT columns around for filtering/plotting)
+fires_sf <- fires_df |>
+  st_as_sf(coords = c("LONGITUDE", "LATITUDE"), crs = 4326, remove = FALSE)
+
+fires_sf
+
+library(leaflet)
+
+# Simple palette for confidence (falls back to gray if missing/unknown)
+pal <- colorFactor(
+  palette = c("low" = "#1a9850", "medium" = "#fee08b", "high" = "#d73027"),
+  domain  = c("low","medium","high"),
+  na.color = "#9e9e9e"
 )
 
-# Assign numeric size for plotting
-wildfires_sf <- wildfires_sf %>%
-  mutate(CONFIDENCE_NUM = case_when(
-    confidence == "low" ~ 1,
-    confidence == "medium" ~ 2,
-    confidence == "high" ~ 3
-  ))
+# Split into overlay groups for toggling
+fires_low    <- fires_sf |> filter(CONF_LC == "low")
+fires_medium <- fires_sf |> filter(CONF_LC == "medium")
+fires_high   <- fires_sf |> filter(CONF_LC == "high")
+fires_other  <- fires_sf |> filter(is.na(CONF_LC) | !(CONF_LC %in% c("low","medium","high")))
 
-# Get US states shapefile (medium resolution)
-usa <- ne_states(country = "united states of america", returnclass = "sf")
+leaflet() |>
+  addProviderTiles("Esri.WorldImagery", group = "Imagery") |>
+  addProviderTiles("CartoDB.Positron", group = "Light") |>
+  addCircleMarkers(data = fires_high,
+                   ~LONGITUDE, ~LATITUDE,
+                   radius = 4, stroke = FALSE, fillOpacity = 0.8,
+                   color = ~pal(CONF_LC),
+                   popup = ~paste0("<b>Date:</b> ", ACQ_DATE, 
+                                   if ("SATELLITE" %in% names(fires_sf)) paste0("<br><b>Sat:</b> ", SATELLITE) else "",
+                                   if ("CONFIDENCE" %in% names(fires_sf)) paste0("<br><b>Conf:</b> ", CONFIDENCE) else ""),
+                   clusterOptions = markerClusterOptions(),
+                   group = "High") |>
+  addCircleMarkers(data = fires_medium,
+                   ~LONGITUDE, ~LATITUDE,
+                   radius = 4, stroke = FALSE, fillOpacity = 0.8,
+                   color = ~pal(CONF_LC),
+                   popup = ~paste0("<b>Date:</b> ", ACQ_DATE,
+                                   if ("SATELLITE" %in% names(fires_sf)) paste0("<br><b>Sat:</b> ", SATELLITE) else "",
+                                   if ("CONFIDENCE" %in% names(fires_sf)) paste0("<br><b>Conf:</b> ", CONFIDENCE) else ""),
+                   clusterOptions = markerClusterOptions(),
+                   group = "Medium") |>
+  addCircleMarkers(data = fires_low,
+                   ~LONGITUDE, ~LATITUDE,
+                   radius = 4, stroke = FALSE, fillOpacity = 0.8,
+                   color = ~pal(CONF_LC),
+                   popup = ~paste0("<b>Date:</b> ", ACQ_DATE,
+                                   if ("SATELLITE" %in% names(fires_sf)) paste0("<br><b>Sat:</b> ", SATELLITE) else "",
+                                   if ("CONFIDENCE" %in% names(fires_sf)) paste0("<br><b>Conf:</b> ", CONFIDENCE) else ""),
+                   clusterOptions = markerClusterOptions(),
+                   group = "Low") |>
+  addCircleMarkers(data = fires_other,
+                   ~LONGITUDE, ~LATITUDE,
+                   radius = 4, stroke = FALSE, fillOpacity = 0.8,
+                   color = ~pal(CONF_LC),
+                   popup = ~paste0("<b>Date:</b> ", ACQ_DATE),
+                   clusterOptions = markerClusterOptions(),
+                   group = "Other/NA") |>
+  addLayersControl(
+    baseGroups = c("Imagery", "Light"),
+    overlayGroups = c("High", "Medium", "Low", "Other/NA"),
+    options = layersControlOptions(collapsed = FALSE)
+  ) |>
+  addLegend(
+    "bottomright", pal = pal, values = c("low","medium","high"),
+    title = "Confidence", opacity = 1
+  ) |>
+  fitBounds(lng1 = min(fires_sf$LONGITUDE, na.rm = TRUE),
+            lat1 = min(fires_sf$LATITUDE,  na.rm = TRUE),
+            lng2 = max(fires_sf$LONGITUDE, na.rm = TRUE),
+            lat2 = max(fires_sf$LATITUDE,  na.rm = TRUE))
+```
 
-# Plot bubble map over USA shape
-ggplot() +
-  geom_sf(data = usa, fill = "grey95", color = "white") +
-  geom_sf(data = wildfires_sf, aes(color = confidence, size = CONFIDENCE_NUM, alpha = CONFIDENCE_NUM)) +
-  scale_color_manual(values = c("low" = "#1a9850", "medium" = "#fee08b", "high" = "#d73027")) +
-  scale_size_continuous(range = c(1, 6), guide = "none") +
-  scale_alpha_continuous(range = c(0.4, 0.9), guide = "none") +
-  coord_sf(xlim = c(-125, -66), ylim = c(24, 50)) +  # Focus on continental US
-  labs(
-    title = "Wildfire Detections Across the USA (Landsat, Last 7 Days)",
-    subtitle = "Point size and opacity reflect confidence level",
-    color = "Confidence Level"
-  ) +
-  theme_minimal() +
-  theme(
-    plot.title = element_text(face = "bold", size = 16),
-    plot.subtitle = element_text(size = 12)
-  )
+```{r}
+
 ```
 
 ## ✨ Summary
@@ -343,8 +409,6 @@ ggplot() +
 -   What are some other test we can perform to confirm these fire predictions
 
 ```{r}
-
-
 ```
 
 ```         
