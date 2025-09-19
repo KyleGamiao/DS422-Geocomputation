@@ -15,6 +15,14 @@ execute:
 editor: visual
 ---
 
+```{r}
+library(here)
+library(terra)
+library(sf)
+library(mapview)
+library(tidyverse)
+```
+
 ## NDVI (Normalized Difference Vegetation Index)
 
 NDVI is a simple, per-pixel indicator of “greenness” (photosynthetic activity).
@@ -39,7 +47,7 @@ NDVI = (NIR - Red) / (NIR + Red)
 
 -   **0.6–0.9**: dense, healthy vegetation\
 -   **0.2–0.5**: sparse/brown vegetation, shrubs/grass\
--   **0–0.2**: bare soil / urban
+-   **0–0.2**: bare soil / urban\
 -   **\< 0**: water, clouds, shadows, snow
 
 ### What data do we need to calculate NDVI
@@ -81,3 +89,60 @@ ndvi <- (nir - red) / (nir + red)
 ```{r}
 plot(ndvi, main = "NDVI")
 ```
+
+### Trimming the plot:
+
+```{r}
+# Create extent in lat/lon
+oahu_ext_latlon <- ext(-158.3, -157.6, 21.2, 21.7)
+
+# Create a temporary raster with this extent in WGS84
+temp_raster <- rast(oahu_ext_latlon, crs = "EPSG:4326")
+
+# Project to match your NDVI's CRS
+temp_raster_utm <- project(temp_raster, crs(ndvi))
+
+# Get the extent in UTM coordinates
+oahu_bbox <- ext(temp_raster_utm)
+
+# Crop your NDVI
+ndvi_oahu <- crop(ndvi, oahu_bbox)
+plot(ndvi_oahu, main = "NDVI - Oahu Area")
+```
+
+### Advanced Mapping
+
+```{r}
+# Reduce resolution significantly (factor of 8-10 should work)
+ndvi_small <- aggregate(ndvi_oahu, fact = 4, fun = mean)
+
+# Create custom breaks and colors
+breaks <- c(-1, 0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1)
+colors <- c("#4A90E2",      # Ocean (blue)
+           "#CD853F",       # Bare soil/urban (tan)
+           "#DEB887",       # Very sparse (light tan)
+           "#F0E68C",       # Sparse (light yellow)
+           "#ADFF2F",       # Moderate (yellow-green)
+           "#32CD32",       # Good vegetation (lime green)
+           "#228B22",       # Dense vegetation (forest green)
+           "#006400")       # Very dense (dark green)
+
+mapview(ndvi_small,
+        at = breaks,
+        col.regions = colors,
+        layer.name = "NDVI",
+        alpha = 0.8)
+```
+
+## Challenge
+
+1.  Can you use an AI assistant to write R code below that calculates the percentages of each of these groups listed below in our image? Make a bar blot with `ggplot` showing the percentage for each group.
+
+-   **0.6–0.9**: dense, healthy vegetation
+-   **0.2–0.5**: sparse/brown vegetation, shrubs/grass
+-   **0–0.2**: bare soil / urban
+-   **\< 0**: water, clouds, shadows, snow
+
+2.  Find a research paper that utilizes NDVI to do something cool, paste a link to the paper below with a 3 sentence summary of how the paper uses NDVI
+
+\
