@@ -1,0 +1,304 @@
+---
+title: "NDVI Analysis of Deforestation in Pará, Brazil (2000–2025)"
+author: "Jaydon, Sano, La'a, Kili"
+format: html
+execute: 
+  echo: true
+  warning: false
+  message: false
+---
+
+## NDVI Install and Library Statements
+
+```{r}
+if(!requireNamespace("MODISTools", quietly = TRUE)) install.packages("MODISTools")
+if(!requireNamespace("tidyverse", quietly = TRUE)) install.packages("tidyverse")
+if(!requireNamespace("sf", quietly = TRUE)) install.packages("sf")
+if(!requireNamespace("future.apply", quietly = TRUE)) install.packages("future.apply")
+if(!requireNamespace("here", quietly = TRUE)) install.packages("here")
+
+library(MODISTools)
+library(mapview)
+library(tidyverse)
+library(future.apply)
+library(here)
+library(future)
+library(terra)   
+library(sf)      
+library(stars)   
+library(ggplot2)
+library(dplyr)
+```
+
+## Setting up bounding box
+
+```{r}
+# Load Pará boundary shapefile (replace with your path)
+para_boundary <- st_read("data/para_boundary.shp")
+
+# Check projection
+st_crs(para_boundary)
+
+# Reproject to UTM Zone 21S (EPSG:32721) for local accuracy
+para_boundary <- st_transform(para_boundary, 32721)
+
+plot(st_geometry(para_boundary), main = "Pará Boundary")
+```
+
+## Loading data for one image
+
+```{r}
+# File paths
+landsat_red <- rast("data/Landsat_B4.tif")  # Red band
+landsat_nir <- rast("data/Landsat_B5.tif")  # NIR band
+
+# Clip to Pará boundary
+landsat_red <- crop(landsat_red, para_boundary) |> mask(para_boundary)
+landsat_nir <- crop(landsat_nir, para_boundary) |> mask(para_boundary)
+
+# Sentinel-2 example
+sentinel_red <- rast("data/Sentinel_B4.jp2")
+sentinel_nir <- rast("data/Sentinel_B8.jp2")
+
+sentinel_red <- crop(sentinel_red, para_boundary) |> mask(para_boundary)
+sentinel_nir <- crop(sentinel_nir, para_boundary) |> mask(para_boundary)
+```
+
+## Calculate NDVI
+
+```{r}
+# NDVI formula: (NIR - Red) / (NIR + Red)
+
+ndvi_landsat <- (landsat_nir - landsat_red) / (landsat_nir + landsat_red)
+ndvi_sentinel <- (sentinel_nir - sentinel_red) / (sentinel_nir + sentinel_red)
+
+# Plot NDVI
+plot(ndvi_landsat, main = "NDVI - Landsat (Example)")
+plot(ndvi_sentinel, main = "NDVI - Sentinel (Example)")
+```
+
+## NDVI Classification for Para, Brazil 10/02/2025
+
+```{r}
+# Paths to your Band 4 (Red) and Band 8 (NIR) files for Para
+red_path <- here("data/band_data_para/para_B04.jp2")
+nir_path <- here("data/band_data_para/para_B08.jp2")
+
+# Load bands
+red <- rast(red_path)
+nir <- rast(nir_path)
+
+# Calculate NDVI
+ndvi <- (nir - red) / (nir + red)
+
+# Optional: Crop to Para bounding box
+para_ext <- ext(-55, -45, -5, 2) # Approximate extent for Pará
+temp_raster <- rast(para_ext, crs = "EPSG:4326")
+temp_raster_utm <- project(temp_raster, crs(ndvi))
+para_bbox <- ext(temp_raster_utm)
+ndvi_para <- crop(ndvi, para_bbox)
+
+# Reclassify NDVI into categories
+ndvi_classes <- classify(ndvi_para, 
+                         rcl = matrix(c(
+                           -Inf, 0, 1,     # water/shadow/snow
+                            0, 0.2, 2,     # bare soil / urban
+                            0.2, 0.5, 3,   # sparse vegetation
+                            0.5, 0.9, 4    # dense vegetation
+                         ), ncol = 3, byrow = TRUE))
+
+# Count pixels per class
+counts <- freq(ndvi_classes) %>% as_tibble()
+
+# Map class IDs to labels
+labels <- tibble(
+  value = 1:4,
+  class = c("< 0: water/shadow/snow",
+            "0–0.2: bare soil / urban",
+            "0.2–0.5: sparse vegetation",
+            "0.5–0.9: dense vegetation")
+)
+
+# Join with labels and calculate percentages
+counts <- counts %>%
+  left_join(labels, by = "value") %>%
+  mutate(percent = count / sum(count) * 100)
+
+# Plot with ggplot2
+ggplot(counts, aes(x = class, y = percent, fill = class)) +
+  geom_col(show.legend = FALSE) +
+  coord_flip() +
+  labs(title = "NDVI Class Distribution - Para, Brazil (2025)",
+       x = "NDVI Class",
+       y = "Percentage of Area (%)") +
+  theme_minimal()
+
+```
+
+## NDVI Classification for Para, Brazil 01/01/2024 - 01/01/2025
+
+```{r}
+# -----------------------------
+# 1. Define Pará bounding box
+# -----------------------------
+para_bbox <- st_bbox(c(xmin = -55, xmax = -45, ymin = -5, ymax = 2), crs = 4326)
+
+# Create a grid of points (0.25° spacing; ~1189 points)
+lon_seq <- seq(para_bbox$xmin, para_bbox$xmax, by = 0.25)
+lat_seq <- seq(para_bbox$ymin, para_bbox$ymax, by = 0.25)
+pts <- expand.grid(lon = lon_seq, lat = lat_seq)
+
+# -----------------------------
+# 2. Setup parallel plan
+# -----------------------------
+
+plan(multisession, workers = parallel::detectCores() - 1)  # leave one core free
+
+# -----------------------------
+# 3. Download NDVI in parallel
+# -----------------------------
+download_point <- function(i) {
+  cat("Downloading point", i, "of", nrow(pts), "\n")
+  temp <- try(
+    MODISTools::mt_subset(
+      product = "MOD13Q1",
+      lat = pts$lat[i],
+      lon = pts$lon[i],
+      band = "250m_16_days_NDVI",
+      start = "2024-01-01",
+      end = "2025-01-01",
+      km_lr = 0,
+      km_ab = 0,
+      site_name = paste0("Point_", i),
+      internal = TRUE
+    ), silent = TRUE
+  )
+  
+  if(!inherits(temp, "try-error")) return(temp)
+  else return(NULL)
+}
+
+ndvi_list <- future_lapply(1:nrow(pts), download_point)
+ndvi_data <- bind_rows(ndvi_list)
+
+# -----------------------------
+# 4. Scale NDVI
+# -----------------------------
+ndvi_data <- ndvi_data %>%
+  mutate(value = value / 10000)
+
+# -----------------------------
+# 5. Classify NDVI
+# -----------------------------
+ndvi_data <- ndvi_data %>%
+  mutate(class = case_when(
+    value < 0 ~ "water/shadow/snow",
+    value >= 0 & value < 0.2 ~ "bare soil / urban",
+    value >= 0.2 & value < 0.5 ~ "sparse vegetation",
+    value >= 0.5 ~ "dense vegetation"
+  ))
+
+# -----------------------------
+# 6. Summarize by date
+# -----------------------------
+ndvi_summary <- ndvi_data %>%
+  group_by(calendar_date, class) %>%
+  summarise(count = n(), .groups = "drop") %>%
+  group_by(calendar_date) %>%
+  mutate(percent = count / sum(count) * 100)
+
+# -----------------------------
+# 7. Plot time series
+# -----------------------------
+ggplot(ndvi_summary, aes(x = as.Date(calendar_date), y = percent, color = class)) +
+  geom_line(size = 1) +
+  labs(title = "NDVI Class Distribution Over Time - Pará, Brazil (2024)",
+       x = "Date",
+       y = "Percentage (%)",
+       color = "NDVI Class") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+## NDVI Classification for Para, Brazil 01/01/2000 - 01/01/2025
+
+```{r}
+# -----------------------------
+# 1. Create a grid of points (0.25° spacing; ~1189 points)
+# -----------------------------
+lon_seq <- seq(para_bbox$xmin, para_bbox$xmax, by = 0.25)
+lat_seq <- seq(para_bbox$ymin, para_bbox$ymax, by = 0.25)
+pts <- expand.grid(lon = lon_seq, lat = lat_seq)
+
+# -----------------------------
+# 2. Setup parallel plan
+# -----------------------------
+plan(multisession, workers = parallel::detectCores() - 1)  # leave one core free
+
+# -----------------------------
+# 3. Download NDVI in parallel
+# -----------------------------
+download_point <- function(i) {
+  cat("Downloading point", i, "of", nrow(pts), "\n")
+  temp <- try(
+    MODISTools::mt_subset(
+      product = "MOD13Q1",
+      lat = pts$lat[i],
+      lon = pts$lon[i],
+      band = "250m_16_days_NDVI",
+      start = "2000-01-01",   # <--- changed
+      end = "2025-01-01",     # <--- changed
+      km_lr = 0,
+      km_ab = 0,
+      site_name = paste0("Point_", i),
+      internal = TRUE
+    ), silent = TRUE
+  )
+  
+  if(!inherits(temp, "try-error")) return(temp)
+  else return(NULL)
+}
+
+ndvi_list <- future_lapply(1:nrow(pts), download_point)
+ndvi_data <- bind_rows(ndvi_list)
+
+# -----------------------------
+# 4. Scale NDVI
+# -----------------------------
+ndvi_data <- ndvi_data %>%
+  mutate(value = value / 10000)
+
+# -----------------------------
+# 5. Classify NDVI
+# -----------------------------
+ndvi_data <- ndvi_data %>%
+  mutate(class = case_when(
+    value < 0 ~ "water/shadow/snow",
+    value >= 0 & value < 0.2 ~ "bare soil / urban",
+    value >= 0.2 & value < 0.5 ~ "sparse vegetation",
+    value >= 0.5 ~ "dense vegetation"
+  ))
+
+# -----------------------------
+# 6. Summarize by date
+# -----------------------------
+ndvi_summary <- ndvi_data %>%
+  group_by(calendar_date, class) %>%
+  summarise(count = n(), .groups = "drop") %>%
+  group_by(calendar_date) %>%
+  mutate(percent = count / sum(count) * 100)
+
+# -----------------------------
+# 7. Plot time series
+# -----------------------------
+ggplot(ndvi_summary, aes(x = as.Date(calendar_date), y = percent, color = class)) +
+  geom_line(size = 1) +
+  labs(
+    title = "NDVI Class Distribution Over Time - Pará, Brazil (2000–2025)",
+    x = "Date",
+    y = "Percentage (%)",
+    color = "NDVI Class"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```

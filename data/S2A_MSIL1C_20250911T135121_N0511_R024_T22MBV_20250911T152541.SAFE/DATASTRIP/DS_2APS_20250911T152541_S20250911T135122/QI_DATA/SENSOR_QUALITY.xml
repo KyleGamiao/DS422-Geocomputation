@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Earth_Explorer_File xmlns="http://gs2.esa.int/DATA_STRUCTURE/olqcReport">
+    <Earth_Explorer_Header>
+        <Fixed_Header>
+            <File_Name>S2A_OPER_MSI_L1C_DS_2APS_20250911T152541_S20250911T135122_SENSOR_QUALITY_report.xml</File_Name>
+            <File_Description>Report produced by OLQC-SC</File_Description>
+            <Notes></Notes>
+            <Mission>S2A</Mission>
+            <File_Class>OPER</File_Class>
+            <File_Type>REP_OLQCPA</File_Type>
+            <Validity_Period>
+                <Validity_Start>UTC=2025-02-11T00:00:00</Validity_Start>
+                <Validity_Stop>UTC=2100-01-01T00:00:00</Validity_Stop>
+            </Validity_Period>
+            <File_Version>2</File_Version>
+            <Source>
+                <System>OLQC-SC</System>
+                <Creator>OLQC-SC</Creator>
+                <Creator_Version>06.04.00</Creator_Version>
+                <Creation_Date>UTC=2025-09-11T16:35:35</Creation_Date>
+            </Source>
+        </Fixed_Header>
+    </Earth_Explorer_Header>
+    <Data_Block type="xml">
+        <report gippVersion="1.0" globalStatus="PASSED" date="2025-09-11T16:35:35.851Z">
+            <checkList>
+                <parentID>S2A_OPER_GIP_OLQCPA_MPC__20250210T000044_V20250211T000000</parentID>
+                <name>SENSOR_QUALITY</name>
+                <version>1.0</version>
+                <item url="/mnt/nfs-l1-04/l1-processing/processing-id-28161-2025-09-11-15-39-04/TaskTable_20250911T153904/FORMAT_METADATA_DS_L1C/output/PDI_DS/S2A_OPER_MSI_L1C_DS_2APS_20250911T152541_S20250911T135122_N05.11/" className="PDI Level 1C Datastrip Folder" name="S2A_OPER_MSI_L1C_DS_2APS_20250911T152541_S20250911T135122_N05.11" class="http://www.esa.int/s2#pdi_level_1c_datastrip_container"/>
+                <check>
+                    <inspection creation="2025-09-11T16:35:35.790Z" duration="0" execution="2025-09-11T16:35:35.813Z" id="Degraded_SAD" item="S2A_OPER_MTD_L1C_DS_2APS_20250911T152541_S20250911T135122.xml" itemURL="/mnt/nfs-l1-04/l1-processing/processing-id-28161-2025-09-11-15-39-04/TaskTable_20250911T153904/FORMAT_METADATA_DS_L1C/output/PDI_DS/S2A_OPER_MSI_L1C_DS_2APS_20250911T152541_S20250911T135122_N05.11/S2A_OPER_MTD_L1C_DS_2APS_20250911T152541_S20250911T135122.xml" name="Check the consistency of relative orbit. " priority="5" processingStatus="done" status="PASSED"/>
+                    <message contentType="text/plain">No Degraded SAD</message>
+                </check>
+                <check>
+                    <inspection creation="2025-09-11T16:35:37.807Z" duration="1" execution="2025-09-11T16:35:37.844Z" id="Datation_Model_GPS_SYNC" item="S2A_OPER_MTD_L1C_DS_2APS_20250911T152541_S20250911T135122.xml" itemURL="/mnt/nfs-l1-04/l1-processing/processing-id-28161-2025-09-11-15-39-04/TaskTable_20250911T153904/FORMAT_METADATA_DS_L1C/output/PDI_DS/S2A_OPER_MSI_L1C_DS_2APS_20250911T152541_S20250911T135122_N05.11/S2A_OPER_MTD_L1C_DS_2APS_20250911T152541_S20250911T135122.xml" name="Check the correctness of the Datation model with GPS_SYNC. " priority="5" processingStatus="done" status="PASSED"/>
+                    <message contentType="text/plain">GPS is synchronized.</message>
+                </check>
+                <check>
+                    <inspection creation="2025-09-11T16:35:37.995Z" duration="8" execution="2025-09-11T16:35:38.010Z" id="Datation_Model_RMOY" item="S2A_OPER_MTD_L1C_DS_2APS_20250911T152541_S20250911T135122.xml" itemURL="/mnt/nfs-l1-04/l1-processing/processing-id-28161-2025-09-11-15-39-04/TaskTable_20250911T153904/FORMAT_METADATA_DS_L1C/output/PDI_DS/S2A_OPER_MSI_L1C_DS_2APS_20250911T152541_S20250911T135122_N05.11/S2A_OPER_MTD_L1C_DS_2APS_20250911T152541_S20250911T135122.xml" name="Check the correctness of the Datation model with RMOY. " priority="5" processingStatus="done" status="PASSED"/>
+                    <message contentType="text/plain">RMOY not found in dataset</message>
+                </check>
+                <check>
+                    <inspection creation="2025-09-11T16:35:38.769Z" duration="526" execution="2025-09-11T16:35:38.809Z" id="checkMetadata" item="S2A_OPER_MSI_L1C_DS_2APS_20250911T152541_S20250911T135122_N05.11" itemURL="/mnt/nfs-l1-04/l1-processing/processing-id-28161-2025-09-11-15-39-04/TaskTable_20250911T153904/FORMAT_METADATA_DS_L1C/output/PDI_DS/S2A_OPER_MSI_L1C_DS_2APS_20250911T152541_S20250911T135122_N05.11/" name="Metadata file check. " priority="5" processingStatus="done" status="PASSED"/>
+                    <message contentType="text/plain">Metadata file is present.</message>
+                </check>
+            </checkList>
+        </report>
+    </Data_Block>
+</Earth_Explorer_File>

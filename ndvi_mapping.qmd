@@ -143,6 +143,108 @@ mapview(ndvi_small,
 -   **0–0.2**: bare soil / urban
 -   **\< 0**: water, clouds, shadows, snow
 
+```{r}
+# Reclassify NDVI into categories
+ndvi_classes <- classify(ndvi_oahu, 
+                         rcl = matrix(c(
+                           -Inf, 0, 1,   # water/shadow/snow
+                            0, 0.2, 2,   # bare soil / urban
+                            0.2, 0.5, 3, # sparse vegetation
+                            0.6, 0.9, 4  # dense vegetation
+                         ), ncol = 3, byrow = TRUE))
+
+# Count pixels per class
+counts <- freq(ndvi_classes) %>% as_tibble()
+
+# Map class IDs to labels
+labels <- tibble(
+  value = 1:4,
+  class = c("< 0: water/shadow/snow",
+            "0–0.2: bare soil / urban",
+            "0.2–0.5: sparse vegetation",
+            "0.6–0.9: dense vegetation")
+)
+
+# Join with labels and calculate percentages
+counts <- counts %>%
+  left_join(labels, by = "value") %>%
+  mutate(percent = count / sum(count) * 100)
+
+# Plot with ggplot2
+ggplot(counts, aes(x = class, y = percent, fill = class)) +
+  geom_col(show.legend = FALSE) +
+  coord_flip() +
+  labs(title = "NDVI Class Distribution - Oʻahu",
+       x = "NDVI Class",
+       y = "Percentage of Area (%)") +
+  theme_minimal()
+```
+
 2.  Find a research paper that utilizes NDVI to do something cool, paste a link to the paper below with a 3 sentence summary of how the paper uses NDVI
 
-\
+[**https://doi.org/10.1029/2024EA003639**](https://doi.org/10.1029/2024EA003639)
+
+*Integrated Remote Sensing for Enhanced Drought Assessment: A Multi‐Index Approach in Rajasthan, India*
+
+The study used NDVI together with other drought indicators to track drought patterns over 35 years in Rajasthan, India. By combining the indices they made more detailed maps showing where vegetation health changes and which areas are most at risk. They found that long-term NDVI trends can reveal land degradation and help plan better drought responses.
+
+```{r}
+library(here)
+library(terra)
+library(tidyverse)
+library(mapview)
+
+# Paths to your Band 4 (Red) and Band 8 (NIR) files for Para
+red_path <- here("data/band_data_para/para_b04.jp2")
+nir_path <- here("data/band_data_para/para_b08.jp2")
+
+# Load bands
+red <- rast(red_path)
+nir <- rast(nir_path)
+
+# Calculate NDVI
+ndvi <- (nir - red) / (nir + red)
+
+# Optional: Crop to Para bounding box
+para_ext <- ext(-55, -45, -5, 2) # Approximate extent for Pará
+temp_raster <- rast(para_ext, crs = "EPSG:4326")
+temp_raster_utm <- project(temp_raster, crs(ndvi))
+para_bbox <- ext(temp_raster_utm)
+ndvi_para <- crop(ndvi, para_bbox)
+
+# Reclassify NDVI into categories
+ndvi_classes <- classify(ndvi_para, 
+                         rcl = matrix(c(
+                           -Inf, 0, 1,     # water/shadow/snow
+                            0, 0.2, 2,     # bare soil / urban
+                            0.2, 0.5, 3,   # sparse vegetation
+                            0.5, 0.9, 4    # dense vegetation
+                         ), ncol = 3, byrow = TRUE))
+
+# Count pixels per class
+counts <- freq(ndvi_classes) %>% as_tibble()
+
+# Map class IDs to labels
+labels <- tibble(
+  value = 1:4,
+  class = c("< 0: water/shadow/snow",
+            "0–0.2: bare soil / urban",
+            "0.2–0.5: sparse vegetation",
+            "0.5–0.9: dense vegetation")
+)
+
+# Join with labels and calculate percentages
+counts <- counts %>%
+  left_join(labels, by = "value") %>%
+  mutate(percent = count / sum(count) * 100)
+
+# Plot with ggplot2
+ggplot(counts, aes(x = class, y = percent, fill = class)) +
+  geom_col(show.legend = FALSE) +
+  coord_flip() +
+  labs(title = "NDVI Class Distribution - Para, Brazil (2025)",
+       x = "NDVI Class",
+       y = "Percentage of Area (%)") +
+  theme_minimal()
+
+```
