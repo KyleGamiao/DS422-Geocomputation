@@ -263,8 +263,15 @@ plot_feature_dependence(treeshap1, "percent_completed_high_school")
 Create feature dependence plots for the next 4 most important variables from the feature importance plot above.
 
 **Hint**: Use the same `plot_feature_dependence()` function but change the variable name.
+```{r}
+plot_feature_dependence(treeshap1, "percent_children_in_poverty")
+plot_feature_dependence(treeshap1, "percent_uninsured")
+plot_feature_dependence(treeshap1, "income_ratio")
+plot_feature_dependence(treeshap1, "percent_severe_housing_problems")
 
-``` r
+```
+
+``` {r}
 # Template:
 # plot_feature_dependence(treeshap1, "your_variable_name_here")
 ```
